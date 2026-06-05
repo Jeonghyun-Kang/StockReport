@@ -20,8 +20,14 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 pip install --upgrade pip
-pip install -r requirements.txcat > README.md <<'EOF'
+pip install -r requirements.txt
 ```
+
+## 데모 영상
+
+<video src="https://github.com/Jeonghyun-Kang/StockReport/raw/main/ai_finance_recording_video.mov" controls width="100%"></video>
+
+> 영상이 보이지 않으면 [여기를 눌러 다운로드/재생](https://github.com/Jeonghyun-Kang/StockReport/raw/main/ai_finance_recording_video.mov)하세요.
 
 # 공시 기반 투자 의사결정 참고 AI
 
@@ -98,7 +104,6 @@ Streamlit 리포트 출력
 ---
 ## 3. .env파일 설정
 ```bash
-cat > .env.example <<'EOF'
 DART_API_KEY=
 
 NAVER_CLIENT_ID=
