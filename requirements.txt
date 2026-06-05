@@ -1,0 +1,21 @@
+# --- Core ---
+streamlit>=1.33
+pandas>=2.0
+numpy>=1.24
+requests>=2.31
+python-dotenv>=1.0
+pydantic>=2.5
+
+# --- LLM (OpenAI-compatible; model-agnostic) ---
+openai>=1.30
+
+# --- DART disclosures ---
+
+# --- Prices ---
+yfinance>=0.2.40
+# pykrx>=1.0.45   # optional fallback for KRX data
+
+# --- Embeddings / VectorDB (optional, graceful fallback if missing) ---
+# sentence-transformers>=2.6   # ko-sroberta-multitask embeddings
+# chromadb>=0.5                # alternative vector store
+scikit-learn>=1.3              # TF-IDF fallback retriever
