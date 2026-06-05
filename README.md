@@ -21,6 +21,7 @@ source .venv/bin/activate
 
 pip install --upgrade pip
 pip install -r requirements.txcat > README.md <<'EOF'
+```
 
 # 공시 기반 투자 의사결정 참고 AI
 
@@ -29,7 +30,6 @@ DART 사업보고서 기반 RAG, 네이버 트렌드/뉴스, 과거 주가 반�
 사용자 맞춤형 투자 참고 리포트를 생성하는 Streamlit 기반 AI 서비스입니다.
 
 > 본 프로젝트는 투자 참고용 정보 제공 서비스이며, 매수/매도 추천이나 법적 투자자문을 제공하지 않습니다.
-
 ---
 
 ## 1. 핵심 기능
@@ -93,7 +93,11 @@ LLM 분석
 
         ↓
 
-Streamlit 리포트 출력t
+Streamlit 리포트 출력
+
+---
+## 3. .env파일 설정
+```bash
 cat > .env.example <<'EOF'
 DART_API_KEY=
 
@@ -105,3 +109,5 @@ LLM_API_KEY=
 LLM_MODEL=gpt-4o-mini
 
 EMBEDDING_MODEL=jhgan/ko-sroberta-multitask
+```
+
