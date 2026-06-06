@@ -25,9 +25,9 @@ pip install -r requirements.txt
 
 ## 데모 영상
 
-<video src="https://github.com/Jeonghyun-Kang/StockReport/raw/main/ai_finance_recording_video.mov" controls width="100%"></video>
+<video src="https://github.com/Jeonghyun-Kang/StockReport/raw/main/ai_finance_recording_video.mp4" controls width="100%"></video>
 
-> 영상이 보이지 않으면 [여기를 눌러 다운로드/재생](https://github.com/Jeonghyun-Kang/StockReport/raw/main/ai_finance_recording_video.mov)하세요.
+> 영상이 보이지 않으면 [여기를 눌러 다운로드/재생](https://github.com/Jeonghyun-Kang/StockReport/raw/main/ai_finance_recording_video.mp4)하세요.
 
 # 공시 기반 투자 의사결정 참고 AI
 
