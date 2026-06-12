@@ -89,6 +89,48 @@ OUTPUT_SCHEMA_HINT = """{
 }"""
 
 
+# D1: 병렬 2분할 스키마 (구조는 동일, 호출만 둘로 나눠 동시 생성 → 지연 단축)
+SCHEMA_PART_A = """{
+  "investment_thesis": {
+    "one_line": "핵심 투자 판단 한 줄 (이 기업이 지금 무엇을 확인해야 하는 기업인지)",
+    "key_question": "현재 투자 판단의 핵심 질문",
+    "overall_stance": "전반 스탠스(범주형)"
+  },
+  "company_summary": {
+    "business_structure": "사업 구조", "current_position": "현재 위치(강점/확인 변수)",
+    "financial_quality": "재무 건전성", "growth_driver": "핵심 성장 동력", "main_uncertainty": "핵심 불확실성"
+  },
+  "positive_factors": [
+    {"title": "", "category": "재무 안정성|성장 모멘텀|주주환원|산업 수혜|경쟁력 강화",
+     "evidence": "공시 근거", "why_it_matters": "왜 중요한지", "investment_implication": "성향/비중 연결 의미"}
+  ],
+  "risk_factors": [
+    {"title": "", "category": "시장 리스크|사업 리스크|재무 리스크|지배구조|규제",
+     "evidence": "공시 근거", "why_it_matters": "의미·중요한 이유",
+     "user_impact": "성향/보유비중과의 연결", "monitoring_signal": "앞으로 볼 지표"}
+  ]
+}"""
+
+SCHEMA_PART_B = """{
+  "trend_interpretation": {
+    "trend_signal": "관심도 변동 신호(방향 단정 금지)", "interpretation": "해석", "caution": "오독 주의점"
+  },
+  "historical_price_reaction": {
+    "summary": "(제공된 수치 그대로 요약)", "how_to_use": "통계 참고 방법", "caution": "과거≠미래 주의"
+  },
+  "personalized_guidance": {
+    "narrative": "투자 성향·투자 기간·보유 비중 3가지를 모두 녹인 2~3문장 서술형 방향",
+    "recommended_stance": "범주형 종합 스탠스",
+    "rationale": "근거(리스크·긍정 요인·성향·비중 종합)",
+    "action_guide": {
+      "current_holding": "현재 보유자 관점(범주형)",
+      "additional_buying": "추가 매수 관점(확인 신호·분할 접근)",
+      "risk_control": "리스크 관리 관점(집중도·분산)"
+    }
+  }
+}"""
+
+
 def _fmt_hits(hits, label: str, key: str) -> str:
     if not hits:
         return f"({label} 없음)"
@@ -105,6 +147,7 @@ def build_user_prompt(
     advisory_hits: List,
     trend_content: str,
     price_reaction: Dict,
+    schema_hint: str = OUTPUT_SCHEMA_HINT,
 ) -> str:
     bucket = config.weight_bucket(float(user_input.get("weight", 0)))
     rg = config.RISK_PROFILE_GUIDE.get(user_input["risk_profile"], {})
@@ -135,7 +178,8 @@ def build_user_prompt(
 {_fmt_hits(advisory_hits, '자문', 'section')}
 
 위 컨텍스트만 근거로, 아래 스키마의 JSON으로만 응답하라. 각 항목의 깊이 요건과 최소 개수를 반드시 지켜라.
-{OUTPUT_SCHEMA_HINT}"""
+요청된 키만 채우고 다른 키는 만들지 마라.
+{schema_hint}"""
 
 
 def build_query(user_input: Dict) -> str:
