@@ -1,10 +1,36 @@
-"""공용 유틸: 텍스트 평문화, 청킹, 프로젝트 루트 sys.path 보정."""
+"""공용 유틸: 텍스트 평문화, 청킹, 프로젝트 루트 sys.path 보정, TTL 캐시."""
 from __future__ import annotations
 
+import functools
 import re
 import sys
+import time
 from pathlib import Path
 from typing import List
+
+
+def ttl_cache(seconds: int):
+    """간단한 TTL 캐시 데코레이터(해시 가능한 인자 기준). 프로세스 내에서만 유효."""
+
+    def deco(fn):
+        store: dict = {}
+
+        @functools.wraps(fn)
+        def wrap(*args, **kwargs):
+            key = (args, tuple(sorted(kwargs.items())))
+            now = time.time()
+            if key in store:
+                val, ts = store[key]
+                if now - ts < seconds:
+                    return val
+            val = fn(*args, **kwargs)
+            store[key] = (val, now)
+            return val
+
+        wrap.cache_clear = store.clear
+        return wrap
+
+    return deco
 
 _ROOT = Path(__file__).resolve().parent
 

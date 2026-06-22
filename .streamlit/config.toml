@@ -1,0 +1,10 @@
+# 토스 무드 테마 — 흰 배경 + 파란 포인트
+[theme]
+primaryColor = "#3182F6"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F4F6"
+textColor = "#191F28"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"

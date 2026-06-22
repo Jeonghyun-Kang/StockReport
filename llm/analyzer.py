@@ -338,8 +338,14 @@ def _matrix_narrative(profile: str, horizon: str, weight: float, bucket: str, fo
 def run_llm(
     user_input: Dict, disclosure_hits, advisory_hits, trend_content: str, price_reaction: Dict
 ) -> AnalysisResult:
-    """LLM 호출(가능 시) → 검증/재시도, 실패 시 규칙기반 fallback(사유 표면화)."""
+    """LLM을 2분할 병렬 호출(지연 단축) → 병합/검증, 실패 시 규칙기반 fallback(사유 표면화).
+
+    구조(스키마)는 단일 호출과 동일하다. A=thesis/요약/긍정/리스크, B=트렌드/주가해석/가이드.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
     from diagnostics import decode_openai_error
+    from llm.prompt_builder import SCHEMA_PART_A, SCHEMA_PART_B
 
     if not _llm_available():
         return _rule_based(
@@ -347,47 +353,66 @@ def run_llm(
             note="LLM 키/모델 미설정 — 규칙기반 분석으로 표시 중입니다. (.env의 LLM_* 설정)",
         )
 
-    user_prompt = build_user_prompt(
-        user_input, disclosure_hits, advisory_hits, trend_content, price_reaction
-    )
-    last_error = "응답 파싱 실패 — JSON 형식이 아니었습니다."
-    for attempt in range(2):
-        try:
-            raw = _call_llm(user_prompt)
-            data = _parse(raw)
-            if data is None:
-                continue
-            data.setdefault("company", user_input["company"])
-            data.setdefault("risk_profile", user_input["risk_profile"])
-            data.setdefault("weight", user_input.get("weight", 0))
-            data.setdefault("horizon", user_input.get("horizon", config.DEFAULT_HORIZON))
-            data.setdefault("disclaimer", config.DISCLAIMER)
-            # 과거 주가 통계는 실제 계산값으로 강제 덮어쓰기(LLM 환각 방지), 텍스트는 LLM 것 유지
-            hp = data.get("historical_price_reaction") or {}
-            hp.update({
-                "summary": price_reaction.get("summary", hp.get("summary", "")),
-                "n": price_reaction.get("n", 0),
-                "mean_5d_return": price_reaction.get("mean_5d_return", 0.0),
-                "min_5d_return": price_reaction.get("min_5d_return", 0.0),
-                "max_5d_return": price_reaction.get("max_5d_return", 0.0),
-                "events": price_reaction.get("events", []),
-            })
-            hp.setdefault("how_to_use", "과거 유사 공시 이후 단기 분포의 참고 자료로만 활용하세요.")
-            hp.setdefault("caution", "과거 ≠ 미래. 미래 수익을 보장하지 않습니다.")
-            data["historical_price_reaction"] = hp
-            data["llm_used"] = True
-            data["llm_note"] = ""
-            return AnalysisResult(**data)
-        except ValidationError as e:
-            last_error = f"LLM 응답 검증 실패: {str(e)[:120]}"
-        except Exception as e:
-            last_error = decode_openai_error(e)
-            if "401" in last_error or "429" in last_error or "403" in last_error:
-                break
-    return _rule_based(
-        user_input, disclosure_hits, advisory_hits, trend_content, price_reaction,
-        note=f"LLM 호출 실패로 규칙기반 분석으로 표시 중입니다 — {last_error}",
-    )
+    def _call_part(schema_hint):
+        prompt = build_user_prompt(
+            user_input, disclosure_hits, advisory_hits, trend_content, price_reaction,
+            schema_hint=schema_hint,
+        )
+        err = "응답 파싱 실패 — JSON 형식이 아니었습니다."
+        for _ in range(2):
+            try:
+                d = _parse(_call_llm(prompt))
+                if d is not None:
+                    return d, ""
+            except Exception as e:
+                err = decode_openai_error(e)
+                if any(c in err for c in ("401", "429", "403")):
+                    break
+        return None, err
+
+    # 두 파트를 동시에 호출(I/O 바운드 → 스레드로 지연 절반)
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        fa = ex.submit(_call_part, SCHEMA_PART_A)
+        fb = ex.submit(_call_part, SCHEMA_PART_B)
+        data_a, err_a = fa.result()
+        data_b, err_b = fb.result()
+
+    if data_a is None or data_b is None:
+        return _rule_based(
+            user_input, disclosure_hits, advisory_hits, trend_content, price_reaction,
+            note=f"LLM 호출 실패로 규칙기반 분석으로 표시 중입니다 — {err_a or err_b}",
+        )
+
+    data = {}
+    data.update(data_a)
+    data.update(data_b)
+    data.setdefault("company", user_input["company"])
+    data.setdefault("risk_profile", user_input["risk_profile"])
+    data.setdefault("weight", user_input.get("weight", 0))
+    data.setdefault("horizon", user_input.get("horizon", config.DEFAULT_HORIZON))
+    data.setdefault("disclaimer", config.DISCLAIMER)
+    # 과거 주가 통계는 실제 계산값으로 강제 덮어쓰기(LLM 환각 방지), 텍스트는 LLM 것 유지
+    hp = data.get("historical_price_reaction") or {}
+    hp.update({
+        "summary": price_reaction.get("summary", hp.get("summary", "")),
+        "n": price_reaction.get("n", 0),
+        "mean_5d_return": price_reaction.get("mean_5d_return", 0.0),
+        "min_5d_return": price_reaction.get("min_5d_return", 0.0),
+        "max_5d_return": price_reaction.get("max_5d_return", 0.0),
+        "events": price_reaction.get("events", []),
+    })
+    hp.setdefault("how_to_use", "과거 유사 공시 이후 단기 분포의 참고 자료로만 활용하세요.")
+    hp.setdefault("caution", "과거 ≠ 미래. 미래 수익을 보장하지 않습니다.")
+    data["historical_price_reaction"] = hp
+    data["llm_used"] = True
+    data["llm_note"] = ""
+    try:
+        return AnalysisResult(**data)
+    except ValidationError as e:
+        return _rule_based(
+            user_input, disclosure_hits, advisory_hits, trend_content, price_reaction,
+            note=f"LLM 응답 검증 실패로 규칙기반 분석으로 표시 중입니다 — {str(e)[:120]}",
+        )
 
 
 def analyze(user_input: Dict) -> AnalysisResult:
@@ -433,16 +458,18 @@ def analyze(user_input: Dict) -> AnalysisResult:
     except Exception:
         advisory_hits = []
 
-    result = run_llm(user_input, disclosure_hits, advisory_hits, trend.content, price_reaction)
-    result.disclosure_sources = build_disclosure_sources(disclosure_hits)
-
-    # 최근 공시 목록(전 유형) — UI 링크용
+    # 최근 공시 목록(표시용)은 LLM 추론에 쓰이지 않으므로 LLM 호출과 병렬로 가져온다(지연 단축).
+    from concurrent.futures import ThreadPoolExecutor
     from ingest.dart_fetch import fetch_recent_disclosures
 
-    try:
-        recents = fetch_recent_disclosures(user_input["company"])
-    except Exception:
-        recents = []
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        recents_future = ex.submit(fetch_recent_disclosures, user_input["company"])
+        result = run_llm(user_input, disclosure_hits, advisory_hits, trend.content, price_reaction)
+        result.disclosure_sources = build_disclosure_sources(disclosure_hits)
+        try:
+            recents = recents_future.result()
+        except Exception:
+            recents = []
     result.recent_disclosures = [RecentDisclosure(**r) for r in recents]
     return result
 

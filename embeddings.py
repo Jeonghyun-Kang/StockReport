@@ -19,6 +19,18 @@ def _l2_normalize(mat: np.ndarray) -> np.ndarray:
     return mat / norms
 
 
+# SentenceTransformer 모델을 프로세스 전역에서 1회만 로드해 모든 스토어가 공유한다.
+_ST_MODEL_CACHE: dict = {}
+
+
+def _get_st_model(name: str):
+    if name not in _ST_MODEL_CACHE:
+        from sentence_transformers import SentenceTransformer
+
+        _ST_MODEL_CACHE[name] = SentenceTransformer(name)
+    return _ST_MODEL_CACHE[name]
+
+
 class DenseEmbedder:
     """OpenAI 호환 임베딩 또는 sentence-transformers 백엔드."""
 
@@ -43,9 +55,7 @@ class DenseEmbedder:
                 api_key=config.EMBEDDING_API_KEY or config.LLM_API_KEY,
             )
         elif self.backend == "sbert" and self._st is None:
-            from sentence_transformers import SentenceTransformer
-
-            self._st = SentenceTransformer(self.model)
+            self._st = _get_st_model(self.model)  # 전역 캐시 공유(중복 로드 방지)
 
     def encode(self, texts: List[str]) -> np.ndarray:
         self._ensure()

@@ -10,6 +10,7 @@ pydantic>=2.5
 openai>=1.30
 
 # --- DART disclosures ---
+OpenDartReader>=0.3.2   # import: `from opendartreader import OpenDartReader`
 
 # --- Prices ---
 yfinance>=0.2.40

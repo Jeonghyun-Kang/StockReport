@@ -10,7 +10,7 @@ from dataclasses import dataclass, asdict
 from datetime import date, timedelta
 from typing import List, Optional
 
-from utils import ensure_root_on_path, normalize_text
+from utils import ensure_root_on_path, normalize_text, ttl_cache
 
 ensure_root_on_path()
 import config  # noqa: E402
@@ -189,6 +189,7 @@ def fetch_latest_report(company: str) -> Optional[dict]:
     return None
 
 
+@ttl_cache(seconds=1800)  # 30분: 공시 일자는 자주 바뀌지 않음
 def fetch_event_dates(company: str, kind: str = "A", n: int = None) -> List[str]:
     """과거 동일 유형 공시(정기보고서 등)의 접수일 목록(YYYY-MM-DD). 주가 반응 이벤트로 사용."""
     n = n or config.PRICE_MAX_EVENTS
@@ -221,6 +222,7 @@ def fetch_event_dates(company: str, kind: str = "A", n: int = None) -> List[str]
     ]
 
 
+@ttl_cache(seconds=1800)  # 30분 캐시: 화면 표시용 최근 공시 목록
 def fetch_recent_disclosures(company: str, n: int = 10) -> List[dict]:
     """최근 공시 목록(전 유형) → [{title, date, rcept_no, url}]. UI 링크용."""
     info = resolve_corp(company)
